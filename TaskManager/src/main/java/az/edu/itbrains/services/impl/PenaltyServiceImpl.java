@@ -148,7 +148,8 @@ public class PenaltyServiceImpl implements PenaltyService {
         if (task.getDeadline() != null && task.getDeadline().isBefore(LocalDateTime.now())) {
             if (!penaltyRepository.existsByTaskIdAndPenaltyType(taskId, PenaltyType.DEADLINE_MISSED)) {
                 applyDeadlineMissedPenalty(taskId);
-                throw new RuntimeException("Deadline keçib! Cərimə tətbiq olundu. Adminə müraciət edin.");
+                // throw-nu silirik ki, proses qırılmasın
+                System.out.println("Deadline keçdiyi üçün cərimə yazıldı.");
             }
         }
 
