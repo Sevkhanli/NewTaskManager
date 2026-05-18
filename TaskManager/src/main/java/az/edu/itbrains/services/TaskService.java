@@ -1,6 +1,7 @@
 package az.edu.itbrains.services;
 
 import az.edu.itbrains.DTOs.request.AdminTaskRequestDTO;
+import az.edu.itbrains.DTOs.request.AssignTaskToRoleRequestDTO;
 import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
@@ -13,6 +14,7 @@ public interface TaskService {
     List<TaskResponseDTO> getAllActiveTasks();
     TaskResponseDTO getTaskById(Long id);
 
+    void createTaskForRole(AssignTaskToRoleRequestDTO request);
     List<GroupedTaskResponseDTO> getTasksGroupedByDate();
 
     // User-lər üçün update

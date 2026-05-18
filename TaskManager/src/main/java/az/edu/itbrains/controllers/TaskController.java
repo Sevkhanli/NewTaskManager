@@ -1,6 +1,7 @@
 package az.edu.itbrains.controllers;
 
 import az.edu.itbrains.DTOs.request.AdminTaskRequestDTO;
+import az.edu.itbrains.DTOs.request.AssignTaskToRoleRequestDTO;
 import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO; // Yeni DTO
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
@@ -73,6 +74,14 @@ public class TaskController {
     @Operation(summary = "Update task as Admin", description = "Allows an admin to update any task, including changing the assignee.")
     public ResponseEntity<TaskResponseDTO> updateTaskByAdmin(@PathVariable Long id, @Valid @RequestBody AdminTaskRequestDTO request) {
         return ResponseEntity.ok(taskService.updateTaskByAdmin(id, request));
+    }
+
+    @PostMapping("/admin/assign-to-role")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create a task for all users in a specific role", description = "Allows an admin to bulk-assign a task to all users belonging to a specific role.")
+    public ResponseEntity<String> createTaskForRole(@Valid @RequestBody AssignTaskToRoleRequestDTO request) {
+        taskService.createTaskForRole(request);
+        return ResponseEntity.ok("Task qeyd olunan roldakı bütün istifadəçilərə uğurla təyin edildi.");
     }
 
     @PatchMapping("/{id}/status")

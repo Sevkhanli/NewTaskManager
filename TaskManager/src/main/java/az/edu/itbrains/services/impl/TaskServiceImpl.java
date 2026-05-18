@@ -1,6 +1,7 @@
 package az.edu.itbrains.services.impl;
 
 import az.edu.itbrains.DTOs.request.AdminTaskRequestDTO;
+import az.edu.itbrains.DTOs.request.AssignTaskToRoleRequestDTO;
 import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
@@ -96,6 +97,36 @@ public class TaskServiceImpl implements TaskService {
         validatePermission(task, "READ");
         return convertToResponse(task);
     }
+
+    @Override
+    @Transactional
+    public void createTaskForRole(AssignTaskToRoleRequestDTO request) {
+        // 1. Göndərilən rola sahib olan bütün userləri tapırıq
+        List<User> usersInRole = userRepository.findByRoles_Name(request.getRoleName());
+
+        if (usersInRole.isEmpty()) {
+            throw new RuntimeException(request.getRoleName() + " roluna sahib heç bir istifadəçi tapılmadı!");
+        }
+
+        User adminUser = getCurrentUser(); // Taskı yaradan admin
+
+        // 2. Hər bir istifadəçi üçün ayrıca task yaradıb yadda saxlayırıq
+        for (User user : usersInRole) {
+            Task task = new Task();
+            task.setTitle(request.getTitle());
+            task.setDescription(request.getDescription());
+            task.setDeadline(request.getDeadline());
+
+            task.setCreator(adminUser);
+            task.setAssignee(user); // Bu task artıq bu spesifik userə məxsusdur
+            task.setStatus(TaskStatus.PENDING);
+            task.setCreatedAt(LocalDateTime.now());
+            task.setDeleted(false);
+
+            taskRepository.save(task);
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<GroupedTaskResponseDTO> getTasksGroupedByDate() {
