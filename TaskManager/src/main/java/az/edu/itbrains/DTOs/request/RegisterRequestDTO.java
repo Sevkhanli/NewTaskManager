@@ -31,4 +31,7 @@ public class RegisterRequestDTO {
     // Yeni əlavə olunan sahə
     @NotBlank(message = "Şifrə təsdiqi boş ola bilməz")
     private String confirmPassword;
+    // --- YENİ ƏLAVƏ OLUNAN SAHƏ ---
+    // Admin user yaradanda hansı rolu seçibsə, React bura göndərəcək (Məs: "ROLE_SATIS")
+    private String roleName;
 }

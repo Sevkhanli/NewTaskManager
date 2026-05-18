@@ -81,7 +81,7 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("Bu email ilə istifadəçi artıq mövcuddur.");
         }
 
-        // 2. Yeni istifadəçi obyekti
+        // 2. Yeni istifadəçi obyekti yaradılır
         User user = new User();
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
@@ -89,18 +89,24 @@ public class UserServiceImpl implements UserService {
         // Admin tərəfindən təyin edilən şifrəni encode edirik
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        // 3. Rolların təyin edilməsi (Default olaraq ROLE_USER veririk)
-        Role userRole = roleRepository.findByName("ROLE_USER")
-                .orElseGet(() -> roleRepository.save(new Role("ROLE_USER")));
-        user.getRoles().add(userRole);
+        // 3. Rolların DINAMIK təyin edilməsi (DÜZƏLİŞ OLUNAN HİSSƏ)
+        String targetedRole = (request.getRoleName() != null && !request.getRoleName().trim().isEmpty())
+                ? request.getRoleName().trim()
+                : "ROLE_USER"; // Əgər rol gəlməzsə, default olaraq USER qeyd etsin
 
-        // 4. Admin yaratdığı üçün birbaşa təsdiqlənmiş (verified) edə bilərik
-        // və ya OTP göndərə bilərik. Biz birbaşa true edək ki, admin əlavə edən kimi giriş edə bilsin.
+        // Bazada bu adda rolun olub-olmadığını yoxlayırıq, yoxdursa avtomatik yaradırıq
+        Role assignedRole = roleRepository.findByName(targetedRole)
+                .orElseGet(() -> roleRepository.save(new Role(targetedRole)));
+
+        // İstifadəçiyə seçilən rolu mənimsədirik
+        user.getRoles().add(assignedRole);
+
+        // 4. Admin yaratdığı üçün birbaşa təsdiqlənmiş (verified) edirik
         user.setVerified(true);
 
         userRepository.save(user);
 
-        return new AuthResponseDTO(true, "İstifadəçi admin tərəfindən uğurla yaradıldı.");
+        return new AuthResponseDTO(true, "İstifadəçi admin tərəfindən '" + targetedRole + "' rolu ilə uğurla yaradıldı.");
     }
 
 //    @Override

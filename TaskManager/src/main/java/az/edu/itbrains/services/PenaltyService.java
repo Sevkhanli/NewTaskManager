@@ -14,6 +14,12 @@ public interface PenaltyService {
     PenaltyResponseDTO applyStatusNotCompletedPenalty(Long taskId);
     PenaltyResponseDTO applyFalseCompletionPenalty(Long taskId);
 
+
+    // Roldakı bütün istifadəçilərin cərimələrini gətirmək üçün
+    List<PenaltyResponseDTO> getPenaltiesByRole(String roleName);
+
+    // Müəyyən bir roldakı bütün istifadəçilərin PENDING cərimələrini toplu şəkildə bağışlamaq üçün
+    void waiveAllPenaltiesForRole(String roleName, String waiveReason);
     // Task tamamlama validasiyası
     void validateTaskCompletion(Long taskId, TaskCompletionRequestDTO request);
 

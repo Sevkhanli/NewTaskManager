@@ -132,6 +132,52 @@ public class PenaltyServiceImpl implements PenaltyService {
         return convertToResponse(penaltyRepository.save(penalty));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PenaltyResponseDTO> getPenaltiesByRole(String roleName) {
+        if (!isAdmin()) {
+            throw new RuntimeException("Bu məlumata baxmaq üçün admin icazəniz olmalıdır!");
+        }
+
+        // 1. Roldakı userləri tapırıq
+        List<User> usersInRole = userRepository.findByRoles_Name(roleName);
+
+        // 2. Həmin userlərin id-lərini siyahı olaraq yığırıq
+        List<Long> userIds = usersInRole.stream().map(User::getId).collect(Collectors.toList());
+
+        // 3. Bütün cərimələri filtrləyib yalnız bu roldakı userlərə aid olanları qaytarırıq
+        return penaltyRepository.findAll().stream()
+                .filter(p -> userIds.contains(p.getUser().getId()))
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void waiveAllPenaltiesForRole(String roleName, String waiveReason) {
+        if (!isAdmin()) {
+            throw new RuntimeException("Toplu cərimə bağışlamaq üçün admin icazəniz olmalıdır!");
+        }
+
+        List<User> usersInRole = userRepository.findByRoles_Name(roleName);
+        List<Long> userIds = usersInRole.stream().map(User::getId).collect(Collectors.toList());
+
+        // PENDING statusunda olan və bu rola aid olan bütün cərimələri tapıb bağışlayırıq
+        List<Penalty> pendingPenalties = penaltyRepository.findByStatus(PenaltyStatus.PENDING).stream()
+                .filter(p -> userIds.contains(p.getUser().getId()))
+                .collect(Collectors.toList());
+
+        User adminUser = getCurrentUser();
+
+        for (Penalty penalty : pendingPenalties) {
+            penalty.setStatus(PenaltyStatus.WAIVED);
+            penalty.setWaivedBy(adminUser);
+            penalty.setWaivedAt(LocalDateTime.now());
+            penalty.setWaiveReason(waiveReason + " (Toplu Rol Bağışlanması: " + roleName + ")");
+            penaltyRepository.save(penalty);
+        }
+    }
+
     // ============ TASK TAMAMLAMA VALIDASİYASI ============
 
     @Override

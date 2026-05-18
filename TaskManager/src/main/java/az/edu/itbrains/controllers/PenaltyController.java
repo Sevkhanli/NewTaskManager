@@ -74,11 +74,30 @@ public class PenaltyController {
         return ResponseEntity.ok(penaltyService.getTaskPenalties(taskId));
     }
 
+    // --- ROLA GÖRƏ CƏRİMƏLƏRİ GƏTİRƏN ENDPOINT (YENİ) ---
+    @GetMapping("/role/{roleName}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all penalties for a specific role", description = "Admin only: Returns all penalties for users belonging to a specific role")
+    public ResponseEntity<List<PenaltyResponseDTO>> getPenaltiesByRole(@PathVariable String roleName) {
+        return ResponseEntity.ok(penaltyService.getPenaltiesByRole(roleName));
+    }
+
     @PostMapping("/waive")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Waive a penalty", description = "Admin only: Forgives a penalty with a specific reason")
     public ResponseEntity<PenaltyResponseDTO> waivePenalty(@Valid @RequestBody PenaltyWaiveRequestDTO request) {
         return ResponseEntity.ok(penaltyService.waivePenalty(request));
+    }
+
+    // --- ROLA GÖRƏ TOPLU CƏRİMƏ SİLƏN ENDPOINT (YENİ) ---
+    @PostMapping("/role/{roleName}/waive-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Waive all pending penalties for a role", description = "Admin only: Forgives all pending penalties for all users in a specific role")
+    public ResponseEntity<String> waiveAllPenaltiesForRole(
+            @PathVariable String roleName,
+            @RequestParam String reason) {
+        penaltyService.waiveAllPenaltiesForRole(roleName, reason);
+        return ResponseEntity.ok(roleName + " rolundakı bütün aktiv cərimələr uğurla bağışlandı.");
     }
 
     @PostMapping("/{penaltyId}/mark-paid")
