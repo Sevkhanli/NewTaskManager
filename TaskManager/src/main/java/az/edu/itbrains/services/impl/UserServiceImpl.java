@@ -224,6 +224,25 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public AuthResponseDTO resetUserPasswordByAdmin(Long userId, AdminResetPasswordRequestDTO request) {
+        // 1. Şifrələrin bir-biri ilə uyuşub-uyuşmadığını yoxlayırıq
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new InvalidCredentialsException("Şifrələr bir-biri ilə uyğun gəlmir.");
+        }
+
+        // 2. İstifadəçini tapırıq
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("İstifadəçi tapılmadı."));
+
+        // 3. Yeni şifrəni encode (hash) edib mənimsədirik
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        return new AuthResponseDTO(true, user.getFullName() + " adlı istifadəçinin şifrəsi admin tərəfindən uğurla yeniləndi.");
+    }
+
+    @Override
+    @Transactional
     public AuthResponseDTO loginUser(LoginRequestDTO request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UserNotFoundException("Email və ya şifrə yanlışdır."));

@@ -55,6 +55,16 @@ public class AuthController {
         return ResponseEntity.ok(userService.getAllUsersWithFilter(role));
     }
 
+    @Operation(summary = "Admin tərəfindən istifadəçinin şifrəsinin birbaşa dəyişdirilməsi")
+    @PutMapping("/admin/users/{userId}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')") // YALNIZ ADMIN ÇAĞIRA BİLƏR
+    public ResponseEntity<AuthResponseDTO> resetUserPasswordByAdmin(
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminResetPasswordRequestDTO request) {
+
+        return ResponseEntity.ok(userService.resetUserPasswordByAdmin(userId, request));
+    }
+
     @Operation(summary = "Email təsdiqləmə (OTP)")
     @PostMapping("/verify")
     public ResponseEntity<AuthResponseDTO> verify(@Valid @RequestBody VerifyRequestDTO request) {

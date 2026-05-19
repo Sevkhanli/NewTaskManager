@@ -23,7 +23,8 @@ public interface UserService {
     List<UserListDTO> getAllUsersWithFilter(String role);
     // Tokensiz təkrar göndərmə.
     void resendOtp(ResendRequestDTO request);
-
+    // Admin tərəfindən istifadəçi şifrəsinin birbaşa sıfırlanması
+    AuthResponseDTO resetUserPasswordByAdmin(Long userId, AdminResetPasswordRequestDTO request);
     AuthResponseDTO loginUser(LoginRequestDTO request);
 
     AuthResponseDTO refreshToken(String refreshToken);
