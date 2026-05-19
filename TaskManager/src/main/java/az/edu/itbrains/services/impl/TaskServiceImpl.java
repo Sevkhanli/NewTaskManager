@@ -35,9 +35,8 @@ public class TaskServiceImpl implements TaskService {
     private final PenaltyService penaltyService;
     private final ModelMapper modelMapper;
 
-    // --- MƏRKƏZLƏŞDİRİLMİŞ İCAZƏ YOXLAMASI ---
     private void validatePermission(Task task, String actionType) {
-        if (isAdmin()) return; // Admin hər şeyə icazəlidir
+        if (isAdmin()) return;
 
         boolean isCreator = isCreator(task);
         boolean isAssignee = isAssignee(task);
@@ -116,11 +115,14 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    // --- YENİLƏNMİŞ QURDLAŞDIRMA METODU (FİLTR DƏSTƏKLİ) ---
     @Override
     @Transactional(readOnly = true)
-    public List<GroupedTaskResponseDTO> getTasksGroupedByDate() {
-        List<TaskResponseDTO> allTasks = getAllActiveTasks();
-        return allTasks.stream()
+    public List<GroupedTaskResponseDTO> getTasksGroupedByDate(String role, TaskStatus status, LocalDateTime startDate, LocalDateTime endDate) {
+        // İki fərqli sorğu yazmamaq üçün mövcud dinamik süzgəc metodumuzdan istifadə edirik
+        List<TaskResponseDTO> filteredTasks = getAllTasksWithAdvancedFilters(role, status, startDate, endDate);
+
+        return filteredTasks.stream()
                 .filter(task -> task.getDeadline() != null)
                 .collect(Collectors.groupingBy(task -> task.getDeadline().toLocalDate()))
                 .entrySet().stream()
@@ -195,7 +197,6 @@ public class TaskServiceImpl implements TaskService {
         return taskRepository.findTasksByUserId(getCurrentUser().getId()).stream().map(this::convertToResponse).collect(Collectors.toList());
     }
 
-    // --- YENİ ƏLAVƏ OLUNAN TƏHLÜKƏSİZ VƏ DİNAMİK FİLTR METODU ---
     @Override
     @Transactional
     public List<TaskResponseDTO> getAllTasksWithAdvancedFilters(String role, TaskStatus status, LocalDateTime startDate, LocalDateTime endDate) {
@@ -206,14 +207,12 @@ public class TaskServiceImpl implements TaskService {
             databaseRoleName = role.startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
         }
 
-        // Giriş edən şəxsə görə repodan süzülmüş datanı çəkirik
         if (isAdmin()) {
             tasks = taskRepository.findTasksByAdminFilters(databaseRoleName, status, startDate, endDate);
         } else {
             tasks = taskRepository.findTasksByUserIdAndFilters(getCurrentUser().getId(), status, startDate, endDate);
         }
 
-        // STATUS YOXLAMA VƏ AVTOMATİK YENİLƏMƏ BLOKU
         LocalDateTime now = LocalDateTime.now();
         for (Task task : tasks) {
             if (task.getDeadline() != null && task.getDeadline().isBefore(now)
@@ -229,7 +228,6 @@ public class TaskServiceImpl implements TaskService {
         return tasks.stream().map(this::convertToResponse).collect(Collectors.toList());
     }
 
-    // Helper metodlar
     private boolean isAdmin() { return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")); }
     private boolean isCreator(Task task) { return task.getCreator().getId().equals(getCurrentUser().getId()); }
     private boolean isAssignee(Task task) { return task.getAssignee() != null && task.getAssignee().getId().equals(getCurrentUser().getId()); }
