@@ -3,14 +3,17 @@ package az.edu.itbrains.controllers;
 import az.edu.itbrains.DTOs.request.AdminTaskRequestDTO;
 import az.edu.itbrains.DTOs.request.AssignTaskToRoleRequestDTO;
 import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
-import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO; // Yeni DTO
+import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
 import az.edu.itbrains.enums.TaskStatus;
+import az.edu.itbrains.models.Task;
+import az.edu.itbrains.repositories.TaskRepository;
 import az.edu.itbrains.services.TaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +27,8 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskRepository taskRepository;
+    private final ModelMapper modelMapper;
 
     // --- YARADILMA ---
 
@@ -42,17 +47,37 @@ public class TaskController {
 
     // --- OXUMA ---
 
-    // 1. BU METODU YENİSİ İLƏ ƏVƏZ EDİRİK VAY YA ƏLAVƏ EDİRİK
     @Operation(summary = "Get tasks grouped by date", description = "Retrieves tasks organized into date folders (grouping by deadline).")
     @GetMapping("/grouped")
     public ResponseEntity<List<GroupedTaskResponseDTO>> getGroupedTasks() {
         return ResponseEntity.ok(taskService.getTasksGroupedByDate());
     }
 
-    @Operation(summary = "Get all active tasks (Flat list)", description = "Retrieves a list of all tasks that are not deleted.")
+    // HƏLL YOLU: Köhnə metodu Parametr qəbul edəcək şəkildə genişləndirdik!
+    @Operation(summary = "Get all active tasks (Flat list) with optional role filtering", description = "Retrieves tasks. If role parameter is provided, filters tasks by assignee's role.")
     @GetMapping
-    public ResponseEntity<List<TaskResponseDTO>> getAllActiveTasks() {
-        return ResponseEntity.ok(taskService.getAllActiveTasks());
+    public ResponseEntity<List<TaskResponseDTO>> getAllActiveTasks(@RequestParam(required = false) String role) {
+        List<Task> tasks;
+
+        // Əgər front-end-den rol filtri gəlibsə və 'ALL' deyilsə
+        if (role != null && !role.isEmpty() && !role.equalsIgnoreCase("ALL")) {
+            String databaseRoleName = role.startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
+
+            // Repository-dəki düzgün metodu çağırırıq
+            tasks = taskRepository.findByAssigneeRolesName(databaseRoleName);
+        } else {
+            // Rol gəlməyibsə onsuz da var olan köhnə məntiqi (bütün aktiv taskları) işlədirik
+            tasks = taskRepository.findAll().stream()
+                    .filter(task -> !task.isDeleted())
+                    .toList();
+        }
+
+        // Sənin yazdığın DTO map məntiqi
+        List<TaskResponseDTO> response = tasks.stream()
+                .map(task -> modelMapper.map(task, TaskResponseDTO.class))
+                .toList();
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")

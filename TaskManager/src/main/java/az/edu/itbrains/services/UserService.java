@@ -16,7 +16,7 @@ public interface UserService {
 
     // Mövcud metodların sonuna əlavə et
     List<UserListDTO> getAllUsers();
-
+    AuthResponseDTO updateUserRoleByAdmin(Long userId, String newRoleName);
     AuthResponseDTO createUserByAdmin(RegisterRequestDTO request); // Admin tərəfindən yaradılma
     // Tokensiz təsdiqləmə.
     AuthResponseDTO verifyUser(VerifyRequestDTO request);

@@ -75,6 +75,29 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public AuthResponseDTO updateUserRoleByAdmin(Long userId, String newRoleName) {
+        // 1. İstifadəçini yoxlayırıq
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("İstifadəçi tapılmadı."));
+
+        // 2. Rolun adını boşluqlardan təmizləyirik (Məs: "ROLE_SATIS")
+        String targetedRole = newRoleName.trim();
+
+        // 3. Bazada bu adda rol var mı? Yoxdursa yaradırıq
+        Role role = roleRepository.findByName(targetedRole)
+                .orElseGet(() -> roleRepository.save(new Role(targetedRole)));
+
+        // 4. İstifadəçinin köhnə rollarını təmizləyib yenisini yazırıq
+        user.getRoles().clear();
+        user.getRoles().add(role);
+
+        userRepository.save(user);
+
+        return new AuthResponseDTO(true, user.getFullName() + " adlı əməkdaşın rolu uğurla '" + targetedRole + "' olaraq dəyişdirildi.");
+    }
+
+    @Override
+    @Transactional
     public AuthResponseDTO createUserByAdmin(RegisterRequestDTO request) {
         // 1. Email yoxlanışı
         if (userRepository.existsByEmail(request.getEmail())) {

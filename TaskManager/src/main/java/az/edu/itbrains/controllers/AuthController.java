@@ -5,6 +5,7 @@ import az.edu.itbrains.DTOs.request.*;
 import az.edu.itbrains.DTOs.response.AuthResponseDTO;
 import az.edu.itbrains.DTOs.response.UserListDTO;
 import az.edu.itbrains.exceptions.InvalidTokenException;
+import az.edu.itbrains.repositories.RoleRepository;
 import az.edu.itbrains.services.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import java.util.List;
 public class AuthController {
 
     private final UserService userService;
+    private final RoleRepository roleRepository;
 
 //    @Operation(summary = "Yeni istifadəçi qeydiyyatı")
 //    @PostMapping("/register")
@@ -59,11 +61,56 @@ public class AuthController {
         return ResponseEntity.ok(userService.verifyUser(request));
     }
 
+    @Operation(summary = "Admin tərəfindən sistemə tam xüsusi yeni bir rolun əlavə edilməsi")
+    @PostMapping("/admin/roles")
+    @PreAuthorize("hasRole('ADMIN')") // Təhlükəsizlik üçün YALNIZ ADMIN yarada bilər
+    public ResponseEntity<az.edu.itbrains.DTOs.response.AuthResponseDTO> createNewRole(@RequestParam String roleName) {
+        // 1. Gələn rol adını standart formata salırıq (Məs: "role_hr" -> "ROLE_HR")
+        String formattedRoleName = roleName.trim().toUpperCase();
+        if (!formattedRoleName.startsWith("ROLE_")) {
+            formattedRoleName = "ROLE_" + formattedRoleName;
+        }
+
+        // 2. Bu adda rolun artıq mövcud olub-olmadığını yoxlayırıq
+        if (roleRepository.findByName(formattedRoleName).isPresent()) {
+            return ResponseEntity.badRequest().body(
+                    new az.edu.itbrains.DTOs.response.AuthResponseDTO(false, "Bu adda rol artıq sistemdə mövcuddur.")
+            );
+        }
+
+        // 3. Yeni rolu bazaya qeyd edirik
+        az.edu.itbrains.models.Role newRole = new az.edu.itbrains.models.Role(formattedRoleName);
+        roleRepository.save(newRole);
+
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(
+                new az.edu.itbrains.DTOs.response.AuthResponseDTO(true, "'" + formattedRoleName + "' rolu uğurla sistemə əlavə edildi.")
+        );
+    }
+
+    @Operation(summary = "Admin tərəfindən istifadəçinin rolunun dəyişdirilməsi")
+    @PutMapping("/admin/users/{userId}/role")
+    @PreAuthorize("hasRole('ADMIN')") // Yalnız admin bu endpointi çağıra bilər
+    public ResponseEntity<AuthResponseDTO> updateUserRole(
+            @PathVariable Long userId,
+            @RequestParam String roleName) {
+        return ResponseEntity.ok(userService.updateUserRoleByAdmin(userId, roleName));
+    }
     @Operation(summary = "OTP kodunu yenidən göndər")
     @PostMapping("/resend-otp")
     public ResponseEntity<AuthResponseDTO> resendOtp(@Valid @RequestBody ResendRequestDTO request) {
         userService.resendOtp(request);
         return ResponseEntity.ok(new AuthResponseDTO(true, "Yeni OTP kodu email ünvanınıza göndərildi."));
+    }
+
+    @Operation(summary = "Sistemdəki bütün rolların siyahısını gətir")
+    @GetMapping("/roles")
+    public ResponseEntity<List<az.edu.itbrains.DTOs.response.RoleDTO>> getAllRoles() {
+        // Bazadan rolları çəkirik və sonsuz dövrə girməməsi üçün DTO-ya map edirik
+        List<az.edu.itbrains.DTOs.response.RoleDTO> roles = roleRepository.findAll().stream()
+                .map(role -> new az.edu.itbrains.DTOs.response.RoleDTO(role.getId(), role.getName()))
+                .toList();
+
+        return ResponseEntity.ok(roles);
     }
 
     @Operation(summary = "Refresh token vasitəsilə yeni access token al")
