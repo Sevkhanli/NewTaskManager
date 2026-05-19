@@ -39,6 +39,7 @@ public class UserServiceImpl implements UserService {
     private final VerificationTokenRepository tokenRepository;
     private final RevokedTokenRepository revokedTokenRepository;
     private final RoleRepository roleRepository;
+    private final org.modelmapper.ModelMapper modelMapper = new org.modelmapper.ModelMapper();
 
     public UserServiceImpl(
             UserRepository userRepository,
@@ -186,6 +187,28 @@ public class UserServiceImpl implements UserService {
         tokenRepository.delete(verificationToken);
 
         return new AuthResponseDTO(true, "Email uğurla təsdiqləndi.");
+    }
+
+    @Override
+    public List<UserListDTO> getAllUsersWithFilter(String role) {
+        List<User> users;
+
+        // Əgər front-end dropdown-dan spesifik rol seçibsə və bu 'ALL' deyilsə
+        if (role != null && !role.isEmpty() && !role.equalsIgnoreCase("ALL")) {
+            // Gələn dəyəri baza formatına salırıq (Məs: 'satis' -> 'ROLE_SATIS')
+            String databaseRoleName = role.startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
+
+            // Sənin repository-dəki mövcud metodu çağırırıq
+            users = userRepository.findByRoles_Name(databaseRoleName);
+        } else {
+            // Filtr yoxdursa bütün istifadəçiləri gətiririk
+            users = userRepository.findAll();
+        }
+
+        // Sənin getAllUsers() metodundakı kimi təmiz və xətasız şəkildə DTO-ya çeviririk
+        return users.stream()
+                .map(user -> new UserListDTO(user.getId(), user.getFullName()))
+                .collect(Collectors.toList());
     }
 
     @Override

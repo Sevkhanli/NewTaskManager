@@ -47,12 +47,12 @@ public class AuthController {
     public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         return ResponseEntity.ok(userService.loginUser(request));
     }
-
-    @Operation(summary = "Bütün istifadəçilərin siyahısını gətir (Admin üçün)")
+    @Operation(summary = "Bütün istifadəçilərin siyahısını gətir və ya rola görə filtrlə (Admin üçün)")
     @GetMapping("/admin/users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<UserListDTO>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<List<UserListDTO>> getAllUsers(@RequestParam(required = false) String role) {
+        // İş məntiqini təmiz şəkildə Service-ə ötürürük
+        return ResponseEntity.ok(userService.getAllUsersWithFilter(role));
     }
 
     @Operation(summary = "Email təsdiqləmə (OTP)")

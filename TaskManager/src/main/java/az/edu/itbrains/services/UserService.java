@@ -20,7 +20,7 @@ public interface UserService {
     AuthResponseDTO createUserByAdmin(RegisterRequestDTO request); // Admin tərəfindən yaradılma
     // Tokensiz təsdiqləmə.
     AuthResponseDTO verifyUser(VerifyRequestDTO request);
-
+    List<UserListDTO> getAllUsersWithFilter(String role);
     // Tokensiz təkrar göndərmə.
     void resendOtp(ResendRequestDTO request);
 

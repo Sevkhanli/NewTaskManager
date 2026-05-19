@@ -5,9 +5,7 @@ import az.edu.itbrains.DTOs.request.AssignTaskToRoleRequestDTO;
 import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
-import az.edu.itbrains.enums.PenaltyStatus;
 import az.edu.itbrains.enums.TaskStatus;
-import az.edu.itbrains.models.Penalty;
 import az.edu.itbrains.models.Task;
 import az.edu.itbrains.models.User;
 import az.edu.itbrains.repositories.PenaltyRepository;
@@ -62,9 +60,7 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponseDTO createMyTask(UserTaskRequestDTO request) {
         User currentUser = getCurrentUser();
         Task task = modelMapper.map(request, Task.class);
-
-        task.setId(null); // <--- BU SƏTRİ ƏLAVƏ ET (Çox vacibdir!)
-
+        task.setId(null);
         task.setCreator(currentUser);
         task.setAssignee(currentUser);
         task.setStatus(TaskStatus.PENDING);
@@ -77,9 +73,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskResponseDTO createTaskAsAdmin(AdminTaskRequestDTO request) {
         Task task = modelMapper.map(request, Task.class);
-
-        task.setId(null); // <--- BU SƏTRİ BURADA DA ƏLAVƏ ET
-
+        task.setId(null);
         task.setCreator(getCurrentUser());
         task.setStatus(TaskStatus.PENDING);
         task.setCreatedAt(LocalDateTime.now());
@@ -101,28 +95,23 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void createTaskForRole(AssignTaskToRoleRequestDTO request) {
-        // 1. Göndərilən rola sahib olan bütün userləri tapırıq
         List<User> usersInRole = userRepository.findByRoles_Name(request.getRoleName());
-
         if (usersInRole.isEmpty()) {
             throw new RuntimeException(request.getRoleName() + " roluna sahib heç bir istifadəçi tapılmadı!");
         }
 
-        User adminUser = getCurrentUser(); // Taskı yaradan admin
+        User adminUser = getCurrentUser();
 
-        // 2. Hər bir istifadəçi üçün ayrıca task yaradıb yadda saxlayırıq
         for (User user : usersInRole) {
             Task task = new Task();
             task.setTitle(request.getTitle());
             task.setDescription(request.getDescription());
             task.setDeadline(request.getDeadline());
-
             task.setCreator(adminUser);
-            task.setAssignee(user); // Bu task artıq bu spesifik userə məxsusdur
+            task.setAssignee(user);
             task.setStatus(TaskStatus.PENDING);
             task.setCreatedAt(LocalDateTime.now());
             task.setDeleted(false);
-
             taskRepository.save(task);
         }
     }
@@ -130,17 +119,13 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public List<GroupedTaskResponseDTO> getTasksGroupedByDate() {
-        // 1. Mövcud metodla taskları çəkirik (Admin/User yoxlaması daxil)
         List<TaskResponseDTO> allTasks = getAllActiveTasks();
-
-        // 2. Stream API ilə tarixlərə görə qruplaşdırırıq
-        // Deadline null olanları "Tarixsiz" qrupuna yığa bilərik və ya filtr edə bilərik
         return allTasks.stream()
-                .filter(task -> task.getDeadline() != null) // Deadline-ı olanlar
+                .filter(task -> task.getDeadline() != null)
                 .collect(Collectors.groupingBy(task -> task.getDeadline().toLocalDate()))
                 .entrySet().stream()
                 .map(entry -> new GroupedTaskResponseDTO(entry.getKey(), entry.getValue()))
-                .sorted((a, b) -> a.getDate().compareTo(b.getDate())) // Tarixə görə sıralama
+                .sorted((a, b) -> a.getDate().compareTo(b.getDate()))
                 .collect(Collectors.toList());
     }
 
@@ -161,8 +146,6 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskResponseDTO updateTaskByAdmin(Long id, AdminTaskRequestDTO request) {
         Task task = taskRepository.findById(id).orElseThrow(() -> new RuntimeException("Task tapılmadı"));
-        // Admin üçün xüsusi yoxlamağa ehtiyac yoxdur, çünki validatePermission-da isAdmin() yoxdur.
-
         if (request.getAssigneeId() != null) {
             task.setAssignee(userRepository.findById(request.getAssigneeId()).orElseThrow());
         }
@@ -178,27 +161,20 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId).orElseThrow(() -> new RuntimeException("Task tapılmadı"));
         validatePermission(task, "CHANGE_STATUS");
 
-        // COMPLETED statusuna keçərkən penalty yoxlanması
         if (newStatus == TaskStatus.COMPLETED) {
-            // Deadline keçibsə və cərimə yoxdursa, cərimə tətbiq et
             if (task.getDeadline() != null && task.getDeadline().isBefore(LocalDateTime.now())) {
-                // Əvvəlcə cəriməni tətbiq et (rollback olmasın deyə ayrı transaction)
                 try {
                     penaltyService.applyDeadlineMissedPenalty(taskId);
                 } catch (RuntimeException e) {
                     if (!e.getMessage().contains("artıq deadline cəriməsi mövcuddur")) {
                         throw e;
                     }
-                    // Cərimə artıq varsa, davam et
                 }
-
-                // Cərimə tətbiq olundu, taskın tamamlanmasına icazə vermə
-                throw new RuntimeException("Deadline keçib! Cərimə tətbiq olundu. Admin cəriməni bağışlayana qədər task tamamlana bilməz.");
+                throw new RuntimeException("Deadline keçib! Cərimə tətbiq olundu. Admin cəriməni bağışlayana qədər task tamamlana bilmez.");
             }
         }
 
         task.setStatus(newStatus);
-        // Gələcəkdə burada StatusHistory-ni qeyd edəcəyik
         return convertToResponse(taskRepository.save(task));
     }
 
@@ -212,11 +188,53 @@ public class TaskServiceImpl implements TaskService {
         return "Task silindi.";
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponseDTO> getAllActiveTasks() {
+        if (isAdmin()) return taskRepository.findByDeletedFalse().stream().map(this::convertToResponse).collect(Collectors.toList());
+        return taskRepository.findTasksByUserId(getCurrentUser().getId()).stream().map(this::convertToResponse).collect(Collectors.toList());
+    }
+
+    // --- YENİ ƏLAVƏ OLUNAN TƏHLÜKƏSİZ VƏ DİNAMİK FİLTR METODU ---
+    @Override
+    @Transactional
+    public List<TaskResponseDTO> getAllTasksWithAdvancedFilters(String role, TaskStatus status, LocalDateTime startDate, LocalDateTime endDate) {
+        List<Task> tasks;
+
+        String databaseRoleName = null;
+        if (role != null && !role.isEmpty() && !role.equalsIgnoreCase("ALL")) {
+            databaseRoleName = role.startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
+        }
+
+        // Giriş edən şəxsə görə repodan süzülmüş datanı çəkirik
+        if (isAdmin()) {
+            tasks = taskRepository.findTasksByAdminFilters(databaseRoleName, status, startDate, endDate);
+        } else {
+            tasks = taskRepository.findTasksByUserIdAndFilters(getCurrentUser().getId(), status, startDate, endDate);
+        }
+
+        // STATUS YOXLAMA VƏ AVTOMATİK YENİLƏMƏ BLOKU
+        LocalDateTime now = LocalDateTime.now();
+        for (Task task : tasks) {
+            if (task.getDeadline() != null && task.getDeadline().isBefore(now)
+                    && task.getStatus() != TaskStatus.COMPLETED
+                    && task.getStatus() != TaskStatus.CANCELLED
+                    && task.getStatus() != TaskStatus.OVERDUE) {
+
+                task.setStatus(TaskStatus.OVERDUE);
+                taskRepository.save(task);
+            }
+        }
+
+        return tasks.stream().map(this::convertToResponse).collect(Collectors.toList());
+    }
+
     // Helper metodlar
     private boolean isAdmin() { return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")); }
     private boolean isCreator(Task task) { return task.getCreator().getId().equals(getCurrentUser().getId()); }
     private boolean isAssignee(Task task) { return task.getAssignee() != null && task.getAssignee().getId().equals(getCurrentUser().getId()); }
     private User getCurrentUser() { String email = SecurityContextHolder.getContext().getAuthentication().getName(); return userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı")); }
+
     private TaskResponseDTO convertToResponse(Task task) {
         TaskResponseDTO dto = new TaskResponseDTO();
         dto.setId(task.getId());
@@ -225,27 +243,17 @@ public class TaskServiceImpl implements TaskService {
         dto.setStatus(task.getStatus());
         dto.setDeadline(task.getDeadline());
 
-        // Creator üçün null yoxlaması
         if (task.getCreator() != null) {
             dto.setCreatorName(task.getCreator().getFullName());
         } else {
             dto.setCreatorName("Sistem");
         }
 
-        // Assignee üçün null yoxlaması
         if (task.getAssignee() != null) {
             dto.setAssigneeName(task.getAssignee().getFullName());
         } else {
             dto.setAssigneeName("Təyin edilməyib");
         }
-
         return dto;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TaskResponseDTO> getAllActiveTasks() {
-        if (isAdmin()) return taskRepository.findByDeletedFalse().stream().map(this::convertToResponse).collect(Collectors.toList());
-        return taskRepository.findTasksByUserId(getCurrentUser().getId()).stream().map(this::convertToResponse).collect(Collectors.toList());
     }
 }

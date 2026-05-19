@@ -6,12 +6,20 @@ import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
 import az.edu.itbrains.enums.TaskStatus;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface TaskService {
     TaskResponseDTO createMyTask(UserTaskRequestDTO request);
     TaskResponseDTO createTaskAsAdmin(AdminTaskRequestDTO request);
+    // Köhnə metodun yerində qalır:
     List<TaskResponseDTO> getAllActiveTasks();
+
+    // Yanına bu yeni metodu əlavə edirsən:
+    List<TaskResponseDTO> getAllTasksWithAdvancedFilters(String role, TaskStatus status, LocalDateTime startDate, LocalDateTime endDate);
+
+
     TaskResponseDTO getTaskById(Long id);
 
     void createTaskForRole(AssignTaskToRoleRequestDTO request);

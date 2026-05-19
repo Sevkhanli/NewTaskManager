@@ -6,18 +6,16 @@ import az.edu.itbrains.DTOs.request.UserTaskRequestDTO;
 import az.edu.itbrains.DTOs.response.GroupedTaskResponseDTO;
 import az.edu.itbrains.DTOs.response.TaskResponseDTO;
 import az.edu.itbrains.enums.TaskStatus;
-import az.edu.itbrains.models.Task;
-import az.edu.itbrains.repositories.TaskRepository;
 import az.edu.itbrains.services.TaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -27,8 +25,6 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
-    private final TaskRepository taskRepository;
-    private final ModelMapper modelMapper;
 
     // --- YARADILMA ---
 
@@ -45,39 +41,35 @@ public class TaskController {
         return ResponseEntity.ok(taskService.createTaskAsAdmin(request));
     }
 
-    // --- OXUMA ---
+    // --- OXUMA (BİRLƏŞDİRİLMİŞ VƏ OPTİMALLAŞDIRILMIŞ METOD) ---
+
+    @Operation(summary = "Get all active tasks with advanced filters", description = "Retrieves tasks filtered by role, status, and deadline date range. If no filters provided, fetches all active tasks.")
+    @GetMapping
+    public ResponseEntity<List<TaskResponseDTO>> getAllActiveTasks(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+
+        if (startDate != null && !startDate.isEmpty()) {
+            start = java.time.LocalDate.parse(startDate).atStartOfDay();
+        }
+        if (endDate != null && !endDate.isEmpty()) {
+            end = java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
+        }
+
+        // Bütün filtrasiya və təhlükəsizlik məntiqi Service daxilində idarə olunur
+        List<TaskResponseDTO> response = taskService.getAllTasksWithAdvancedFilters(role, status, start, end);
+        return ResponseEntity.ok(response);
+    }
 
     @Operation(summary = "Get tasks grouped by date", description = "Retrieves tasks organized into date folders (grouping by deadline).")
     @GetMapping("/grouped")
     public ResponseEntity<List<GroupedTaskResponseDTO>> getGroupedTasks() {
         return ResponseEntity.ok(taskService.getTasksGroupedByDate());
-    }
-
-    // HƏLL YOLU: Köhnə metodu Parametr qəbul edəcək şəkildə genişləndirdik!
-    @Operation(summary = "Get all active tasks (Flat list) with optional role filtering", description = "Retrieves tasks. If role parameter is provided, filters tasks by assignee's role.")
-    @GetMapping
-    public ResponseEntity<List<TaskResponseDTO>> getAllActiveTasks(@RequestParam(required = false) String role) {
-        List<Task> tasks;
-
-        // Əgər front-end-den rol filtri gəlibsə və 'ALL' deyilsə
-        if (role != null && !role.isEmpty() && !role.equalsIgnoreCase("ALL")) {
-            String databaseRoleName = role.startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
-
-            // Repository-dəki düzgün metodu çağırırıq
-            tasks = taskRepository.findByAssigneeRolesName(databaseRoleName);
-        } else {
-            // Rol gəlməyibsə onsuz da var olan köhnə məntiqi (bütün aktiv taskları) işlədirik
-            tasks = taskRepository.findAll().stream()
-                    .filter(task -> !task.isDeleted())
-                    .toList();
-        }
-
-        // Sənin yazdığın DTO map məntiqi
-        List<TaskResponseDTO> response = tasks.stream()
-                .map(task -> modelMapper.map(task, TaskResponseDTO.class))
-                .toList();
-
-        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
@@ -115,7 +107,6 @@ public class TaskController {
             @PathVariable Long id,
             @RequestParam TaskStatus newStatus,
             @RequestParam String reason) {
-
         return ResponseEntity.ok(taskService.changeStatus(id, newStatus, reason));
     }
 
